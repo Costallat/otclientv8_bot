@@ -324,6 +324,8 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_game", "setExtendedNewWalking", &Game::setMaxPreWalkingSteps, &g_game);
     g_lua.bindSingletonFunction("g_game", "ignoreServerDirection", &Game::ignoreServerDirection, &g_game);
     g_lua.bindSingletonFunction("g_game", "showRealDirection", &Game::showRealDirection, &g_game);
+    g_lua.bindSingletonFunction("g_game", "enableTileThingLuaCallback", &Game::enableTileThingLuaCallback, &g_game);
+    g_lua.bindSingletonFunction("g_game", "isTileThingLuaCallbackEnabled", &Game::isTileThingLuaCallbackEnabled, &g_game);
     
     g_lua.registerSingletonClass("g_shaders");
     g_lua.bindSingletonFunction("g_shaders", "createShader", &ShaderManager::createShader, &g_shaders);
@@ -412,6 +414,10 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Thing>("isTopEffect", &Thing::isTopEffect);
     g_lua.bindClassMemberFunction<Thing>("isLyingCorpse", &Thing::isLyingCorpse);
     g_lua.bindClassMemberFunction<Thing>("getParentContainer", &Thing::getParentContainer);
+    g_lua.bindClassMemberFunction<Thing>("hide", &Thing::hide);
+    g_lua.bindClassMemberFunction<Thing>("show", &Thing::show);
+    g_lua.bindClassMemberFunction<Thing>("setHidden", &Thing::setHidden);
+    g_lua.bindClassMemberFunction<Thing>("isHidden", &Thing::isHidden);
 
     g_lua.registerClass<House>();
     g_lua.bindClassStaticFunction<House>("create", []{ return HousePtr(new House); });
@@ -725,10 +731,10 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Tile>("hasElevation", &Tile::hasElevation);
     g_lua.bindClassMemberFunction<Tile>("isBlocking", &Tile::isBlocking);
     // for bot
-    g_lua.bindClassMemberFunction<Tile>("addText", &Tile::addText);
-    g_lua.bindClassMemberFunction<Tile>("removeText", &Tile::removeText);
-    g_lua.bindClassMemberFunction<Tile>("getTexts", &Tile::getTexts);
-    g_lua.bindClassMemberFunction<Tile>("clearTexts", &Tile::clearTexts);
+    g_lua.bindClassMemberFunction<Tile>("setText", &Tile::setText);
+    g_lua.bindClassMemberFunction<Tile>("getText", &Tile::getText);
+    g_lua.bindClassMemberFunction<Tile>("setTimer", &Tile::setTimer);
+    g_lua.bindClassMemberFunction<Tile>("getTimer", &Tile::getTimer);
 
 
     g_lua.registerClass<UIItem, UIWidget>();
