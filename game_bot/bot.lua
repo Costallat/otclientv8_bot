@@ -6,6 +6,7 @@ contentsPanel = nil
 configWindow = nil
 configEditorText = nil
 configList = nil
+botTabs = nil
 botPanel = nil
 local botMessages = nil
 local configCopy = ""
@@ -16,7 +17,7 @@ local errorOccured = false
 local statusLabel = nil
 local compiledConfig = nil
 local configTab = nil
-local tabs = {"main", "macros", "hotkeys", "callbacks", "other"}
+local tabs = {"main", "panels", "macros", "hotkeys", "callbacks", "other"}
 local mainTab = nil
 local activeTab = nil
 local editorText = {"", ""}
@@ -25,13 +26,41 @@ function init()
   dofile("defaultconfig")
   dofile("executor")
   
-  connect(g_game, { onGameStart = online, onGameEnd = offline, onTalk = botOnTalk})
+  g_ui.importStyle("ui/basic.otui")
+  g_ui.importStyle("ui/panels.otui")
+  
+  connect(g_game, { 
+    onGameStart = online, 
+    onGameEnd = offline, 
+    onTalk = botOnTalk,
+    onUse = botOnUse,
+    onUseWith = botOnUseWith,
+    onChannelList = botChannelList,
+    onOpenChannel = botOpenChannel,
+    onCloseChannel = botCloseChannel,
+    onChannelEvent = botChannelEvent
+  })
 
   connect(rootWidget, { onKeyDown = botKeyDown,
                         onKeyUp = botKeyUp,
                         onKeyPress = botKeyPress })
                         
   connect(Tile, { onAddThing = botAddThing, onRemoveThing = botRemoveThing })
+
+  connect(Creature, {
+    onAppear = botCreatureAppear,
+    onDisappear = botCreatureDisappear,
+    onPositionChange = botCreaturePositionChange,
+    onHealthPercentChange = botCraetureHealthPercentChange
+  })  
+  connect(LocalPlayer, {
+    onPositionChange = botCreaturePositionChange,
+    onHealthPercentChange = botCraetureHealthPercentChange
+  })  
+  connect(Container, { onOpen = botContainerOpen,
+                       onClose = botContainerClose,
+                       onUpdateItem = botContainerUpdateItem })
+  connect(g_map, { onMissle = botOnMissle })
   
   botConfigFile = g_configs.create("/bot.otml")
   local config = botConfigFile:get("config")
@@ -44,6 +73,9 @@ function init()
   else
     botConfig = botDefaultConfig
   end
+  
+  botConfig.configs[1].name = botDefaultConfig.configs[1].name
+  botConfig.configs[1].script = botDefaultConfig.configs[1].script
 
   botButton = modules.client_topmenu.addRightGameToggleButton('botButton',
     tr('Bot'), '/images/topbuttons/bot', toggle)
@@ -53,18 +85,20 @@ function init()
   botWindow = g_ui.loadUI('bot', modules.game_interface.getRightPanel())
   botWindow:setup()
 
-  contentsPanel = botWindow:getChildById('contentsPanel')
-  configList = contentsPanel:getChildById('config')
-  enableButton = contentsPanel:getChildById('enableButton')
-  statusLabel = contentsPanel:getChildById('statusLabel')
-  botMessages = contentsPanel:getChildById('messages')
-  botPanel = contentsPanel:getChildById('botPanel')
-
+  contentsPanel = botWindow.contentsPanel
+  configList = contentsPanel.config
+  enableButton = contentsPanel.enableButton
+  statusLabel = contentsPanel.statusLabel
+  botMessages = contentsPanel.messages 
+  botTabs = contentsPanel.botTabs
+  botPanel = contentsPanel.botPanel
+  botTabs:setContentWidget(botPanel)  
+  
   configWindow = g_ui.displayUI('config')
   configWindow:hide()
   
-  configEditorText = configWindow:getChildById('text')
-  configTab = configWindow:getChildById('configTab')
+  configEditorText = configWindow.text
+  configTab = configWindow.configTab
   
   configTab.onTabChange = editorTabChanged
   
@@ -91,8 +125,27 @@ function init()
 end
 
 function saveConfig()
-  botConfigFile:set("config", json.encode(botConfig))
-  botConfigFile:save()
+  local status, result = pcall(function() 
+    botConfigFile:set("config", json.encode(botConfig))
+    botConfigFile:save()    
+  end)
+  if not status then    
+    errorOccured = true
+    -- try to fix it
+    local extraInfo = ""
+    for i = 1, #botConfig.configs do
+      if botConfig.configs[i].storage then
+        local status, result = pcall(function() json.encode(botConfig.configs[i].storage) end)
+        if not status then
+          botConfig.configs[i].storage = nil
+          extraInfo = extraInfo .. "\nLocal storage of config " .. i .. " has been erased due to invalid data"
+        end
+      end
+    end
+    statusLabel:setText("Error while saving config and user storage:\n" .. result .. extraInfo .. "\n\n" .. "Try to restart bot")
+    return false
+  end
+  return true
 end
 
 function terminate()
@@ -103,9 +156,34 @@ function terminate()
                         onKeyUp = botKeyUp,
                         onKeyPress = botKeyPress })
 
-  disconnect(g_game, { onGameStart = online, onGameEnd = offline, onTalk = botOnTalk})
+  disconnect(g_game, { 
+    onGameStart = online, 
+    onGameEnd = offline, 
+    onTalk = botOnTalk,
+    onUse = botOnUse,
+    onUseWith = botOnUseWith,
+    onChannelList = botChannelList,
+    onOpenChannel = botOpenChannel,
+    onCloseChannel = botCloseChannel,
+    onChannelEvent = botChannelEvent
+  })
   
   disconnect(Tile, { onAddThing = botAddThing, onRemoveThing = botRemoveThing })
+
+  disconnect(Creature, {
+    onAppear = botCreatureAppear,
+    onDisappear =botCreatureDisappear,
+    onPositionChange = botCreaturePositionChange,
+    onHealthPercentChange = botCraetureHealthPercentChange
+  })  
+  disconnect(LocalPlayer, {
+    onPositionChange = botCreaturePositionChange,
+    onHealthPercentChange = botCraetureHealthPercentChange
+  })  
+  disconnect(Container, { onOpen = botContainerOpen,
+                       onClose = botContainerClose,
+                       onUpdateItem = botContainerUpdateItem })
+  disconnect(g_map, { onMissle = botOnMissle })
 
   removeEvent(executeEvent)
   removeEvent(checkMsgsEvent)
@@ -133,7 +211,7 @@ function online()
   botButton:show()
   updateEnabled()
   if botConfig.enabled then
-    scheduleEvent(refreshConfig, 1)
+    scheduleEvent(refreshConfig, 20)
   else 
     clearConfig()
   end
@@ -181,7 +259,13 @@ function editConfig()
   configWindow:raise()
   configWindow:focus()
   editorText = {botConfig.configs[config].script or "", ""}
-  configEditorText:setText(botConfig.configs[config].script)
+  if #editorText[1] <= 2 then
+    editorText[1] = "--config name\n\n"
+    for k, v in ipairs(tabs) do
+      editorText[1] = editorText[1] .. "--#" .. v .. "\n\n"  
+    end    
+  end
+  configEditorText:setText(editorText[1])
   configEditorText:setEditable(true)
   activeTab = mainTab
   configTab:selectTab(mainTab)
@@ -208,8 +292,12 @@ function restoreMainTab()
     editorText = {configEditorText:getText(), ""}
     return
   end
-  editorText = {editorText[1] .. "--#" .. activeTab:getText():lower() .. "\n" .. configEditorText:getText() .. editorText[2], ""}
-  configEditorText:setText(editorText[1])  
+  local currentText = configEditorText:getText()
+  if #currentText > 0 and currentText:sub(#currentText, #currentText) ~= '\n' then
+    currentText = currentText .. '\n'
+  end
+  editorText = {editorText[1] .. "--#" .. activeTab:getText():lower() .. "\n" .. currentText .. editorText[2], ""}
+  configEditorText:setText(editorText[1])
 end
 
 function editorTabChanged(holder, tab)
@@ -249,13 +337,25 @@ end
 
 function clearConfig()
   compiledConfig = nil
-  botPanel:destroyChildren()
+  
+  botTabs:clearTabs()  
+  botTabs:setOn(false)
+  
   botMessages:destroyChildren()
   botMessages:updateLayout()
+
+  for i, widget in pairs(g_ui.getRootWidget():getChildren()) do
+    if widget.botWidget then
+      widget:destroy()
+    end
+  end
+  local gameMapPanel = modules.game_interface.getMapPanel()
+  if gameMapPanel then
+    gameMapPanel:unlockVisibleFloor()   
+  end
 end
 
 function refreshConfig()
-  clearConfig()
   configWindow:hide()
   
   botConfig.selectedConfig = configList.currentIndex
@@ -263,8 +363,13 @@ function refreshConfig()
     return
   end
 
-  saveConfig()
+  if not saveConfig() then
+    clearConfig()
+    return
+  end
   
+  clearConfig()
+
   local config = botConfig.configs[configList.currentIndex]
   if not config.storage then
     config.storage = {}
@@ -276,10 +381,10 @@ function refreshConfig()
   end
   errorOccured = false
   g_game.enableTileThingLuaCallback(false)
-  local status, result = pcall(function() return executeBot(config.script, config.storage, botPanel, botMsgCallback) end)
+  local status, result = pcall(function() return executeBot(config.script, config.storage, botTabs, botMsgCallback, saveConfig) end)
   if not status then    
     errorOccured = true
-    statusLabel:setText(tr("Error: " .. tostring(result)))
+    statusLabel:setText("Error: " .. tostring(result))
     return
   end
   compiledConfig = result
@@ -300,7 +405,7 @@ function executeConfig()
   local status, result = pcall(function() return compiledConfig.script() end)
   if not status then    
     errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
+    statusLabel:setText("Error: " .. result)
     return
   end 
 end
@@ -332,62 +437,119 @@ function checkMsgs()
   end
 end
 
-function botKeyDown(widget, keyCode, keyboardModifiers)
-  if keyCode == KeyUnknown or compiledConfig == nil then return false end
-  local status, result = pcall(function() compiledConfig.callbacks.onKeyDown(keyCode, keyboardModifiers) end)
+function safeBotCall(func)
+  local status, result = pcall(func)
   if not status then    
     errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
+    statusLabel:setText("Error: " .. result)
   end
   return false
+end
+
+function botKeyDown(widget, keyCode, keyboardModifiers)
+  if compiledConfig == nil then return false end
+  if keyCode == KeyUnknown then return end
+  safeBotCall(function() compiledConfig.callbacks.onKeyDown(keyCode, keyboardModifiers) end)
 end
 
 function botKeyUp(widget, keyCode, keyboardModifiers)
-  if keyCode == KeyUnknown or compiledConfig == nil then return false end
-  local status, result = pcall(function() compiledConfig.callbacks.onKeyUp(keyCode, keyboardModifiers) end)
-  if not status then    
-    errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
-  end
-  return false
+  if compiledConfig == nil then return false end
+  if keyCode == KeyUnknown then return end
+  safeBotCall(function() compiledConfig.callbacks.onKeyUp(keyCode, keyboardModifiers) end)
 end
 
 function botKeyPress(widget, keyCode, keyboardModifiers, autoRepeatTicks)
-  if keyCode == KeyUnknown or compiledConfig == nil then return false end
-  local status, result = pcall(function() compiledConfig.callbacks.onKeyPress(keyCode, keyboardModifiers, autoRepeatTicks) end)
-  if not status then    
-    errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
-  end
-  return false
+  if compiledConfig == nil then return false end
+  if keyCode == KeyUnknown then return end
+  safeBotCall(function() compiledConfig.callbacks.onKeyPress(keyCode, keyboardModifiers, autoRepeatTicks) end)
 end
 
 function botOnTalk(name, level, mode, text, channelId, pos)
   if compiledConfig == nil then return false end
-  local status, result = pcall(function() compiledConfig.callbacks.onTalk(name, level, mode, text, channelId, pos) end)
-  if not status then    
-    errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
-  end
-  return false  
+  safeBotCall(function() compiledConfig.callbacks.onTalk(name, level, mode, text, channelId, pos) end)
 end
 
-function botAddThing(tile, thing, asd)
+function botAddThing(tile, thing)
   if compiledConfig == nil then return false end
-  local status, result = pcall(function() compiledConfig.callbacks.onAddThing(tile, thing) end)
-  if not status then    
-    errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
-  end
-  return false 
+  safeBotCall(function() compiledConfig.callbacks.onAddThing(tile, thing) end)
 end
 
 function botRemoveThing(tile, thing)
   if compiledConfig == nil then return false end
-  local status, result = pcall(function() compiledConfig.callbacks.onRemoveThing(tile, thing) end)
-  if not status then    
-    errorOccured = true
-    statusLabel:setText(tr("Error: " .. result))
-  end
-  return false
+  safeBotCall(function() compiledConfig.callbacks.onRemoveThing(tile, thing) end)
+end
+
+function botCreatureAppear(creature)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onCreatureAppear(creature) end)
+end
+
+function botCreatureDisappear(creature)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onCreatureDisappear(creature) end)
+end
+
+function botCreaturePositionChange(creature, newPos, oldPos)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onCreaturePositionChange(creature, newPos, oldPos) end)
+end
+
+function botCraetureHealthPercentChange(creature, healthPercent)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onCreatureHealthPercentChange(creature, healthPercent) end)
+end
+
+function botOnUse(pos, itemId, stackPos, subType)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onUse(pos, itemId, stackPos, subType) end)
+end
+
+function botOnUseWith(pos, itemId, target, subType)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onUseWith(pos, itemId, target, subType) end)
+end
+
+function botContainerOpen(container, previousContainer)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onContainerOpen(container, previousContainer) end)
+end
+
+function botContainerClose(container)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onContainerClose(container) end)
+end
+
+function botContainerUpdateItem(container, slot, item)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onContainerUpdateItem(container, slot, item) end)
+end
+
+function botOnMissle(missle)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onMissle(missle) end)
+end
+
+function botOnMissle(missle)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onMissle(missle) end)
+end
+
+function botChannelList(channels)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onChannelList(channels) end)
+end
+
+function botOpenChannel(channelId, name)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onOpenChannel(channelId, name) end)
+end
+
+function botCloseChannel(channelId)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onCloseChannel(channelId) end)
+end
+
+function botChannelEvent(channelId, name, event)
+  if compiledConfig == nil then return false end
+  safeBotCall(function() compiledConfig.callbacks.onChannelEvent(channelId, name, event) end)
 end

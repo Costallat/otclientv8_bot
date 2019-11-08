@@ -10,6 +10,7 @@ time - same as now
 player - just LocalPlayer, for eg. player:getHealth()
 storage - table which keeps it values even after otclient restart
 panel - main panel of bot widget
+tabs - ui element, MoveableTabBar, bot tabs, is active when you add tab
 ```
 
 ## Main bot functions
@@ -21,199 +22,169 @@ info(text)
 warn(text)
 error(text)
 
-setupUI(text)
-setupUI(text, parent)
-addLabel(id, text)
-addSwitch(id, text, onClickCallback)
-addButton(id, text, onClickCallback)
-addSeparator(id)
+saveConfig()
+addTab(name) -- returns tab panel, can be used as parent parameter for bellow functions
 
+-- functions/ui.lua
+setupUI(text[, parent])
+addLabel(id, text[, parent])
+addSwitch(id, text, onClickCallback[, parent])
+addButton(id, text, onClickCallback[, parent])
+addTextEdit(id, text, onTextChangeCallback[, parent])
+addSeparator(id[, parent])
+
+-- functions/main.lua
 macro(timeout, callback)
 macro(timeout, name, callback)
-macro(timeout, name, hotkey, callback) -- hotkey is used to turn on/off macro
+macro(timeout, name, hotkey, callback[, parent]) -- hotkey is used to turn on/off macro
 
 hotkey(keys, callback)
-hotkey(keys, name, callback)
+hotkey(keys, name, callback[, parent])
 
 singlehotkey(keys, callback) -- works like hotkey, but will be executed only once after key press
-singlehotkey(keys, name, callback)
+singlehotkey(keys, name, callback[, parent])
 
 schedule(timeout, callback)
 
+-- functions/callbacks.lia
 onKeyDown(callback) -- callback = function(keys)
 onKeyPress(callback) -- callback = function(keys)
 onKeyUp(callback) -- callback = function(keys)
 onTalk(callback) -- callback = function(name, level, mode, text, channelId, pos)
 onAddThing(callback) -- callback = function(tile, thing)
 onRemoveThing(callback) -- callback = function(tile, thing)
+onCreatureAppear(callback) -- callback = function(creature)
+onCreatureDisappear(callback) -- callback = function(creature)
+onCreaturePositionChange(callback) -- callback = function(creature, newPos, oldPos)
+onCreatureHealthPercentChange(callback) -- callback = function(creature, healthPercent)
+onUse(callback) -- callback = function(pos, itemId, stackPos, subType)
+onUseWith(callback) -- callback = function(pos, itemId, target, subType)
+onContainerOpen -- callback = function(container, previousContainer)
+onContainerUpdateItem -- callback = function(container)
+onContainerUpdateItem -- callback = function(container, slot, item)
+onMissle -- callback = function(missle)
+onChannelList -- callback = function(channels)
+onOpenChannel -- callback = function(channelId, name)
+onCloseChannel -- callback = function(channelId)
+onChannelEvent -- callback = function(channelId, name, event)
 
 listen(name, callback) -- callback = function(text, channelId, pos)
+onPlayerPositionChange(callback) -- callback = function(newPos, oldPos)
+onPlayerHealthChange(callback) -- callback = function(healthPercent)
 
 delay(duration) -- can be only used inside callback function, blocks execution of current macro/hotkey/callback for x milliseconds
 ```
 
-## Other functions and shortcuts (from game_bot/functions.lua)
-```
--- player releated
-name = function() return player:getName() end
+## For other functions check folder `game_bot/functions/`. Second list of functions you can find in `lua` directory.
 
-hp = function() return player:getHealth() end
-mana = function() return player:getMana() end
-hppercent = function() return player:getHealthPercent() end
-manapercent = function() return player:getManaPercent() end
-maxhp = function() return player:getMaxHealth() end
-maxmana = function() return player:getMaxMana() end
-hpmax = function() return player:getMaxHealth() end
-manamax = function() return player:getMaxMana() end
-
-cap = function() return player:getCapacity() end
-freecap = function() return player:getFreeCapacity() end
-maxcap = function() return player:getTotalCapacity() end
-capmax = function() return player:getTotalCapacity() end
-
-exp = function() return player:getExperience() end
-lvl = function() return player:getLevel() end
-level = function() return player:getLevel() end
-
-mlev = function() return player:getMagicLevel() end
-magic = function() return player:getMagicLevel() end
-mlevel = function() return player:getMagicLevel() end
-
-soul = function() return player:getSoul() end
-stamina = function() return player:getStamina() end
-voc = function() return player:getVocation() end
-vocation = function() return player:getVocation() end
-
-bless = function() return player:getBlessings() end
-blesses = function() return player:getBlessings() end
-blessings = function() return player:getBlessings() end
-
-
-pos = function() return player:getPosition() end
-posx = function() return player:getPosition().x end
-posy = function() return player:getPosition().y end
-posz = function() return player:getPosition().z end
-
-direction = function() return player:getDirection() end
-speed = function() return player:getSpeed() end
-skull = function() return player:getSkull() end
-outfit = function() return player:getOutfit() end
-
-
-autoWalk = function(destination) return player:autoWalk(destination) end
-walk = function(dir) return modules.game_walking.walk(dir) end
-
--- game releated
-say = g_game.talk
-talk = g_game.talk
-talkPrivate = g_game.talkPrivate
-sayPrivate = g_game.talkPrivate
-use = g_game.useInventoryItem
-usewith = g_game.useInventoryItemWith
-useWith = g_game.useInventoryItemWith
-findItem = g_game.findItemInContainers
-
-attack = g_game.attack
-cancelAttack = g_game.cancelAttack
-follow = g_game.follow
-cancelFollow = g_game.cancelFollow
-cancelAttackAndFollow = g_game.cancelAttackAndFollow
-
-logout = g_game.forceLogout
-ping = g_game.getPing
-
--- map releated
-zoomIn = function() modules.game_interface.getMapPanel():zoomIn() end
-zoomOut = function() modules.game_interface.getMapPanel():zoomOut() end
-
--- tools
-encode = function(data) return json.encode(data) end
-decode = function(text) local status, result = pcall(function() return json.decode(text) end) if status then return result end return {} end
-```
+## This bot comes with plenty of ready to use UI elements called Panels. Check `game_bot/panels/` and first example script for list of them 
 
 ## Example script, check `examples` for more
 ```
---#Example config
+--Default
 
 --#main
-local widget = setupUI([[
-Panel
-  id: redPanel
-  background: red
-  margin-top: 10
-  margin-bottom: 10
-  height: 100
-  
-  Label
-    anchors.fill: parent
-    text: custom ui, otml based
-    text-align: center
-]])
+
+local healTab = addTab("HP")
+local attackTab = addTab("Atck")
+local warTab = addTab("War")
+local caveTab = addTab("Cave")
+
+Panels.TradeMessage()
+
+Panels.Haste(healTab)
+Panels.ManaShield(healTab)
+Panels.AntiParalyze(healTab)
+Panels.Health(healTab)
+Panels.Health(healTab)
+Panels.HealthItem(healTab)
+Panels.HealthItem(healTab)
+Panels.ManaItem(healTab)
+Panels.ManaItem(healTab)
+Panels.Equip(healTab)
+Panels.Equip(healTab)
+Panels.Equip(healTab)
+Panels.Eating(healTab)
+
+Panels.AttackSpell(attackTab)
+Panels.AttackItem(attackTab)
+
+Panels.AttackLeaderTarget(warTab)
+Panels.LimitFloor(warTab)
+Panels.AntiPush(warTab)
+
+local waypoints = Panels.Waypoints(caveTab)
+local attacking = Panels.Attacking(caveTab)
+local looting = Panels.Looting(caveTab) 
+addButton("tutorial", "Help & Tutorials", function()
+  g_platform.openUrl("https://github.com/OTCv8/otclientv8_bot")
+end, caveTab)
 
 --#macros
-macro(5000, "macro send link", "f5", function()
-  g_game.talk("macro test - https://github.com/OTCv8/otclient_bot")
-  g_game.talk("bot is hiding 50% of effects as example, say exevo gran mas vis")
+
+addSeparator("sep1")
+local helloLabel = addLabel("helloLabel", "")
+
+macro(1000, "example macro (time)", nil, function()
+  helloLabel:setText("Time from start: " .. now)
 end)
 
-macro(1000, "flag tiles", function()
-  tile:setText("Hello =)", "red")
+macro(1000, "this macro does nothing", "f7", function()
+
 end)
 
-macro(25, "auto healing", function()
-  if hppercent() < 80 then
-    say("exura")
-    delay(1000) -- not calling this macro for next 1s
+macro(100, "debug pathfinding", nil, function()
+  for i, tile in ipairs(g_map.getTiles(posz())) do
+    tile:setText("")
+  end
+  local path = findEveryPath(pos(), 20, {
+    ignoreNonPathable = false
+  })
+  local total = 0
+  for i, p in pairs(path) do
+    local s = i:split(",")
+    local pos = {x=tonumber(s[1]), y=tonumber(s[2]), z=tonumber(s[3])}
+    local tile = g_map.getTile(pos)
+    if tile then
+      tile:setText(p[2])
+    end
+     total = total + 1
   end
 end)
 
-addSeparator("spe0")
+macro(1000, "speed hack", nil, function()
+  player:setSpeed(1000)
+end)
+
 
 --#hotkeys
-hotkey('y', 'test hotkey', function() g_game.talk('hotkey elo') end)
-singlehotkey('x', 'single hotkey', function() g_game.talk('single hotkey') end)
 
-singlehotkey('=', "Zoom in map", function () zoomIn() end)
-singlehotkey('-', "Zoom out map", function () zoomOut() end)
+hotkey("f5", "example hotkey", function()
+  info("Wow, you clicked f5 hotkey")
+end)
+
+singlehotkey("ctrl+f6", "singlehotkey", function()
+  info("Wow, you clicked f6 singlehotkey")
+  usewith(268, player)
+end)
 
 --#callbacks
-onAddThing(function(tile, thing)
-  if thing:isItem() and thing:getId() == 2129 then
-    local pos = tile:getPosition().x .. "," .. tile:getPosition().y .. "," .. tile:getPosition().z
-    if not storage[pos] or storage[pos] < now then 
-      storage[pos] = now + 20000
-    end
-    tile:setTimer(storage[pos] - now)
-  end
-end)
 
--- hide 50% of effects
-onAddThing(function(tile, thing)
-  if thing:isEffect() and math.random(1, 2) == 1 then
-    thing:hide()
-  end
-end)
-
-listen(player:getName(), function(text)
-  info("you said: " .. text)
+local positionLabel = addLabel("positionLabel", "")
+onPlayerPositionChange(function()
+  positionLabel:setText("Pos: " .. posx() .. "," .. posy() .. "," .. posz())
 end)
 
 --#other
-addLabel("label1", "Test label 1")
-addSeparator("sep1")
-addLabel("label2", "Test label 2")
 
-storage.clicks = 0
-addButton("button1", "Click me", function()
-  storage.clicks = storage.clicks + 1
-  ui.button1:setText("Clicks: " .. storage.clicks)
-end)
-
-HTTP.getJSON("https://api.ipify.org/?format=json", function(data, err)
-    if err then
-        warn("Whoops! Error occured: " .. err)
-        return
+macro(100, "hide useless tiles", "", function()
+  for i, tile in ipairs(g_map.getTiles(posz())) do
+    if not tile:isWalkable(true) then
+      tile:setFill('black')
     end
-    info("HTTP: My IP is: " .. tostring(data['ip']))
+  end
 end)
+
+addLabel("mapinfo", "You can use ctrl + plus and ctrl + minus to zoom in / zoom out map")
+
 ```

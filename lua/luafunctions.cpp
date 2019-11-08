@@ -163,6 +163,7 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_map", "endGhostMode", &Map::endGhostMode, &g_map);
     g_lua.bindSingletonFunction("g_map", "findItemsById", &Map::findItemsById, &g_map);
     g_lua.bindSingletonFunction("g_map", "getAwareRange", &Map::getAwareRangeAsSize, &g_map);
+    g_lua.bindSingletonFunction("g_map", "findEveryPath", &Map::findEveryPath, &g_map);
 
     g_lua.registerSingletonClass("g_minimap");
     g_lua.bindSingletonFunction("g_minimap", "clean", &Minimap::clean, &g_minimap);
@@ -476,7 +477,9 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Creature>("getName", &Creature::getName);
     g_lua.bindClassMemberFunction<Creature>("getHealthPercent", &Creature::getHealthPercent);
     g_lua.bindClassMemberFunction<Creature>("getSpeed", &Creature::getSpeed);
+    g_lua.bindClassMemberFunction<Creature>("setSpeed", &Creature::setSpeed);
     g_lua.bindClassMemberFunction<Creature>("getBaseSpeed", &Creature::getBaseSpeed);
+    g_lua.bindClassMemberFunction<Creature>("setBaseSpeed", &Creature::setBaseSpeed);
     g_lua.bindClassMemberFunction<Creature>("getSkull", &Creature::getSkull);
     g_lua.bindClassMemberFunction<Creature>("getShield", &Creature::getShield);
     g_lua.bindClassMemberFunction<Creature>("getEmblem", &Creature::getEmblem);
@@ -622,6 +625,9 @@ void Client::registerLuaFunctions()
     g_lua.registerClass<Missile, Thing>();
     g_lua.bindClassStaticFunction<Missile>("create", []{ return MissilePtr(new Missile); });
     g_lua.bindClassMemberFunction<Missile>("setId", &Missile::setId);
+    g_lua.bindClassMemberFunction<Missile>("getId", &Missile::getId);
+    g_lua.bindClassMemberFunction<Missile>("getSource", &Missile::getSource);
+    g_lua.bindClassMemberFunction<Missile>("getDestination", &Missile::getDestination);
 
     g_lua.registerClass<StaticText, Thing>();
     g_lua.bindClassStaticFunction<StaticText>("create", []{ return StaticTextPtr(new StaticText); });
@@ -716,6 +722,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Tile>("isFullyOpaque", &Tile::isFullyOpaque);
     g_lua.bindClassMemberFunction<Tile>("isLookPossible", &Tile::isLookPossible);
     g_lua.bindClassMemberFunction<Tile>("hasCreature", &Tile::hasCreature);
+    g_lua.bindClassMemberFunction<Tile>("hasBlockingCreature", &Tile::hasBlockingCreature);
     g_lua.bindClassMemberFunction<Tile>("isEmpty", &Tile::isEmpty);
     g_lua.bindClassMemberFunction<Tile>("isClickable", &Tile::isClickable);
     g_lua.bindClassMemberFunction<Tile>("isPathable", &Tile::isPathable);
@@ -735,7 +742,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Tile>("getText", &Tile::getText);
     g_lua.bindClassMemberFunction<Tile>("setTimer", &Tile::setTimer);
     g_lua.bindClassMemberFunction<Tile>("getTimer", &Tile::getTimer);
-
+    g_lua.bindClassMemberFunction<Tile>("setFill", &Tile::setFill);
 
     g_lua.registerClass<UIItem, UIWidget>();
     g_lua.bindClassStaticFunction<UIItem>("create", []{ return UIItemPtr(new UIItem); });

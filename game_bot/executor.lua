@@ -1,6 +1,9 @@
-function executeBot(config, storage, panel, msgCallback)
+function executeBot(config, storage, tabs, msgCallback, saveConfigCallback)
   local context = {}
-  context.panel = panel
+  context.tabs = tabs
+  context.panel = context.tabs:addTab("Main", g_ui.createWidget('BotPanel')).tabPanel
+  context.saveConfig = saveConfigCallback
+  
   context.storage = storage
   if context.storage._macros == nil then
     context.storage._macros = {} -- active macros
@@ -16,10 +19,23 @@ function executeBot(config, storage, panel, msgCallback)
     onKeyPress = {},
     onTalk = {},
     onAddThing = {},
-    onRemoveThing = {}
+    onRemoveThing = {},
+    onCreatureAppear = {},
+    onCreatureDisappear = {},
+    onCreaturePositionChange = {},
+    onCreatureHealthPercentChange = {},
+    onUse = {},
+    onUseWith = {},
+    onContainerOpen = {},
+    onContainerClose = {},
+    onContainerUpdateItem = {},
+    onMissle = {},
+    onChannelList = {},
+    onOpenChannel = {},
+    onCloseChannel = {},
+    onChannelEvent = {}
   }
-  context.ui = {}
-
+  
   -- basic functions & classes
   context.print = print
   context.pairs = pairs
@@ -28,277 +44,46 @@ function executeBot(config, storage, panel, msgCallback)
   context.math = math
   context.table = table
   context.string = string
+  context.tonumber = tonumber
   context.tr = tr
   context.json = json
   context.regexMatch = regexMatch
+  context.getDistanceBetween = function(p1, p2)
+    return math.max(math.abs(p1.x - p2.x), math.abs(p1.y - p2.y))
+  end
   
   -- classes
+  context.g_resources = g_resources
   context.g_game = g_game
   context.g_map = g_map
   context.g_ui = g_ui
+  context.g_platform = g_platform
+  context.g_sounds = g_sounds
+  context.g_window = g_window
+  context.g_mouse = g_mouse
+
   context.StaticText = StaticText
-  context.Position = Position
+  context.Config = Config
   context.HTTP = HTTP
 
   -- log functions
   context.info = function(text) return msgCallback("info", tostring(text)) end
   context.warn = function(text) return msgCallback("warn", tostring(text)) end
   context.error = function(text) return msgCallback("error", tostring(text)) end
-  context.warning = context.warn
-  
-  -- UI
-  context.setupUI = function(otml, parent)
-    if parent == nil then      
-      parent = context.panel
-    end
-    local widget = g_ui.loadUIFromString(otml, parent)
-    if parent == context.panel and widget:getId() then
-      context.ui[widget:getId()] = widget
-    end
-    return widget
-  end
-  
-  context.addSwitch = function(id, text, onClickCallback)
-    local switch = g_ui.createWidget('BotSwitch', context.panel)
-    switch:setId(id)
-    switch:setText(text)
-    switch.onClick = onClickCallback
-    context.ui[id] = switch
-    return switch
-  end
-  
-  context.addButton = function(id, text, onClickCallback)
-    local button = g_ui.createWidget('BotButton', context.panel)
-    button:setId(id)
-    button:setText(text)
-    button.onClick = onClickCallback
-    context.ui[id] = button
-    return button    
-  end
-  
-  context.addLabel = function(id, text)
-    local label = g_ui.createWidget('BotLabel', context.panel)
-    label:setId(id)
-    label:setText(text)
-    context.ui[id] = label
-    return label    
-  end
-  
-  context.addSeparator = function(id)
-    local separator = g_ui.createWidget('BotSeparator', context.panel)
-    separator:setId(id)
-    context.ui[id] = separator
-    return separator    
-  end
-    
-  context._addMacroSwitch = function(name, keys)
-    local text = name
-    if keys:len() > 0 then
-      text = name .. " [" .. keys .. "]"
-    end
-    local switch = context.addSwitch("macro_" .. #context._macros, text, function(widget)
-      context.storage._macros[name] = not context.storage._macros[name]
-      widget:setOn(context.storage._macros[name])
-    end)
-    switch:setOn(context.storage._macros[name])
-    return switch
-  end
-  
-  context._addHotkeySwitch = function(name, keys)
-    local text = name
-    if keys:len() > 0 then
-      text = name .. " [" .. keys .. "]"
-    end
-    local switch = context.addSwitch("hotkey_" .. #context._hotkeys, text, nil)
-    switch:setOn(false)
-    return switch
-  end
-
-  -- MAIN BOT FUNCTION
-  -- macro(timeout, callback)
-  -- macro(timeout, name, callback)
-  -- macro(timeout, name, hotkey, callback)
-  context.macro = function(timeout, name, hotkey, callback)
-    if type(timeout) ~= 'number' or timeout < 1 then
-      error("Invalid timeout for macro: " .. tostring(timeout))
-    end
-    if type(name) == 'function' then
-      callback = name
-      name = ""
-      hotkey = ""
-    elseif type(hotkey) == 'function' then
-      callback = hotkey
-      hotkey = ""
-    elseif type(callback) ~= 'function' then
-      error("Invalid callback for macro: " .. tostring(callback))
-    end
-    if type(name) ~= 'string' or type(hotkey) ~= 'string' then
-      error("Invalid name or hotkey for macro")
-    end
-    if hotkey:len() > 0 then
-      hotkey = retranslateKeyComboDesc(hotkey)
-    end
-    
-    local switch = nil
-    if name:len() > 0 then
-      if context.storage._macros[name] == nil then
-        context.storage._macros[name] = true
-      end
-      switch = context._addMacroSwitch(name, hotkey)
-    end
-    
-    table.insert(context._macros, {
-      timeout = timeout,
-      name = name,
-      callback = callback,
-      lastExecution = context.now,
-      hotkey = hotkey,
-      switch = switch
-    })
-  end
-  
-  -- hotkey(keys, callback)
-  -- hotkey(keys, name, callback)
-  context.hotkey = function(keys, name, callback)
-    if type(name) == 'function' then
-      callback = name
-      name = ""
-    end
-    keys = retranslateKeyComboDesc(keys)
-    if not keys or #keys == 0 then
-      return context.error("Invalid hotkey keys " .. tostring(name))
-    end
-    if context._hotkeys[keys] then
-      return context.error("Duplicated hotkey: " .. keys)
-    end
-
-    local switch = nil
-    if name:len() > 0 then
-      switch = context._addHotkeySwitch(name, keys)
-    end
-
-    context._hotkeys[keys] = {
-      name = name,
-      callback = callback,
-      lastExecution = context.now,
-      switch = switch,
-      single = false
-    }
-  end
-  
-  -- singlehotkey(keys, callback)
-  -- singlehotkey(keys, name, callback)
-  context.singlehotkey = function(keys, name, callback)
-    if type(name) == 'function' then
-      callback = name
-      name = ""
-    end
-    keys = retranslateKeyComboDesc(keys)
-    if not keys or #keys == 0 then
-      return context.error("Invalid hotkey keys " .. tostring(name))
-    end
-    if context._hotkeys[keys] then
-      return context.error("Duplicated hotkey: " .. keys)
-    end
-
-    local switch = nil
-    if name:len() > 0 then
-      switch = context._addHotkeySwitch(name, keys)
-    end        
-
-    context._hotkeys[keys] = {
-      name = name,
-      callback = callback,
-      lastExecution = context.now,
-      switch = switch,
-      single = true
-    }
-  end  
-  
-  -- schedule(timeout, callback)
-  context.schedule = function(timeout, callback)
-    local extecute_time = g_clock.millis() + timeout
-    table.insert(context._scheduler, {
-      execution = extecute_time,
-      callback = callback
-    })
-    table.sort(context._scheduler, function(a, b) return a.execution < b.execution end)
-  end
-  
-  -- callback(callbackType, callback)
-  context.callback = function(callbackType, callback)
-    if not context._callbacks[callbackType] then
-      return error("Wrong callback type: " .. callbackType)
-    end
-    if callbackType == "onAddThing" or callbackType == "onRemoveThing" then
-      g_game.enableTileThingLuaCallback(true)
-    end
-    local callbackData = {}
-    table.insert(context._callbacks[callbackType], function(...)
-      if not callbackData.delay or callbackData.delay < context.now then
-        context._currentExecution = callbackData       
-        callback(...)
-        context._currentExecution = nil
-      end
-    end)
-  end
-  
-  -- onKeyDown(callback) -- callback = function(keys)
-  context.onKeyDown = function(callback) 
-    return context.callback("onKeyDown", callback)
-  end
-
-  -- onKeyPress(callback) -- callback = function(keys)
-  context.onKeyPress = function(callback) 
-    return context.callback("onKeyPress", callback)
-  end
-  
-  -- onKeyUp(callback) -- callback = function(keys)
-  context.onKeyUp = function(callback) 
-    return context.callback("onKeyUp", callback)
-  end
-  
-  -- onTalk(callback) -- callback = function(name, level, mode, text, channelId, pos)
-  context.onTalk = function(callback) 
-    return context.callback("onTalk", callback)
-  end
-  
-  -- onAddThing(callback) -- callback = function(tile, thing)
-  context.onAddThing = function(callback) 
-    return context.callback("onAddThing", callback)
-  end
-  
-  -- onRemoveThing(callback) -- callback = function(tile, thing)
-  context.onRemoveThing = function(callback) 
-    return context.callback("onRemoveThing", callback)
-  end
-  
-  -- listen(name, callback) -- callback = function(text, channelId, pos)
-  context.listen = function(name, callback)
-    name = name:lower()
-    context.onTalk(function(name2, level, mode, text, channelId, pos)
-      if name == name2:lower() then
-        callback(text, channelId, pos)
-      end
-    end)
-  end
-  
-  -- delay(duration)
-  context.delay = function(duration)
-    if not context._currentExecution then
-      return context.error("Invalid usage of delay function, it should be used inside callbacks")
-    end
-    context._currentExecution.delay = context.now + duration
-  end
+  context.warning = context.warn      
 
   -- init context
   context.now = g_clock.millis()
   context.time = g_clock.millis()
   context.player = g_game.getLocalPlayer()
 
-  require("functions.lua")
-  setupFunctions(context)
-  
+  -- init functions
+  G.botContext = context
+  dofiles("functions")
+  context.Panels = {}
+  dofiles("panels")
+  G.botContext = nil
+
   -- run script
   assert(load(config, nil, nil, context))()
 
@@ -309,17 +94,24 @@ function executeBot(config, storage, panel, msgCallback)
       
       for i, macro in ipairs(context._macros) do
         if macro.lastExecution + macro.timeout <= context.now and (macro.name == nil or macro.name:len() < 1 or context.storage._macros[macro.name]) then
-          if not macro.delay or macro.delay < context.now then
-            macro.lastExecution = context.now
-            context._currentExecution = context._macros[i]
-            macro.callback()
-            context._currentExecution = nil
+          local status, result = pcall(function()
+            if macro.callback() then
+                macro.lastExecution = context.now
+            end
+          end)
+          if not status then
+            context.error("Macro: " .. macro.name .. " execution error: " .. result)
           end
         end
       end
       
       while #context._scheduler > 0 and context._scheduler[1].execution <= g_clock.millis() do
-        context._scheduler[1].callback()
+        local status, result = pcall(function()
+          context._scheduler[1].callback()
+        end)
+        if not status then
+          context.error("Schedule execution error: " .. result)
+        end
         table.remove(context._scheduler, 1)
       end
     end,
@@ -334,11 +126,8 @@ function executeBot(config, storage, panel, msgCallback)
         local hotkey = context._hotkeys[keyDesc]
         if hotkey then
           if hotkey.single then
-            if not hotkey.delay or hotkey.delay < context.now then
-              hotkey.lastExecution = context.now
-              context._currentExecution = hotkey
-              hotkey.callback()          
-              context._currentExecution = nil
+            if hotkey.callback() then
+              hotkey.lastExecution = context.now            
             end
           end
           if hotkey.switch then
@@ -365,11 +154,8 @@ function executeBot(config, storage, panel, msgCallback)
         local keyDesc = determineKeyComboDesc(keyCode, keyboardModifiers)
         local hotkey = context._hotkeys[keyDesc]
         if hotkey and not hotkey.single then
-          if not hotkey.delay or hotkey.delay < context.now then
-            hotkey.lastExecution = context.now
-            context._currentExecution = hotkey
-            hotkey.callback()
-            context._currentExecution = nil
+          if hotkey.callback() then
+            hotkey.lastExecution = context.now          
           end
         end
         for i, callback in ipairs(context._callbacks.onKeyPress) do
@@ -390,7 +176,77 @@ function executeBot(config, storage, panel, msgCallback)
         for i, callback in ipairs(context._callbacks.onRemoveThing) do
           callback(tile, thing)
         end      
-      end
+      end,
+      onCreatureAppear = function(creature)
+        for i, callback in ipairs(context._callbacks.onCreatureAppear) do
+          callback(creature)
+        end      
+      end,
+      onCreatureDisappear = function(creature)
+        for i, callback in ipairs(context._callbacks.onCreatureDisappear) do
+          callback(creature)
+        end
+      end,
+      onCreaturePositionChange = function(creature, newPos, oldPos)
+        for i, callback in ipairs(context._callbacks.onCreaturePositionChange) do
+          callback(creature, newPos, oldPos)
+        end      
+      end,
+      onCreatureHealthPercentChange = function(creature, healthPercent)
+        for i, callback in ipairs(context._callbacks.onCreatureHealthPercentChange) do
+          callback(creature, healthPercent)
+        end      
+      end,
+      onUse = function(pos, itemId, stackPos, subType)
+        for i, callback in ipairs(context._callbacks.onUse) do
+          callback(pos, itemId, stackPos, subType)
+        end      
+      end,
+      onUseWith = function(pos, itemId, target, subType)
+        for i, callback in ipairs(context._callbacks.onUseWith) do
+          callback(pos, itemId, target, subType)
+        end
+      end,
+      onContainerOpen = function(container, previousContainer)
+        for i, callback in ipairs(context._callbacks.onContainerOpen) do
+          callback(container, previousContainer)
+        end
+      end,
+      onContainerClose = function(container)
+        for i, callback in ipairs(context._callbacks.onContainerClose) do
+          callback(container)
+        end
+      end,
+      onContainerUpdateItem = function(container, slot, item)
+        for i, callback in ipairs(context._callbacks.onContainerUpdateItem) do
+          callback(container, slot, item)
+        end
+      end,
+      onMissle = function(missle)
+        for i, callback in ipairs(context._callbacks.onMissle) do
+          callback(missle)
+        end
+      end,
+      onChannelList = function(channels)
+        for i, callback in ipairs(context._callbacks.onChannelList) do
+          callback(channels)
+        end      
+      end,
+      onOpenChannel = function(channelId, channelName)
+        for i, callback in ipairs(context._callbacks.onOpenChannel) do
+          callback(channels)
+        end      
+      end,
+      onCloseChannel = function(channelId)
+        for i, callback in ipairs(context._callbacks.onCloseChannel) do
+          callback(channelId)
+        end      
+      end,
+      onChannelEvent = function(channelId, name, event)
+        for i, callback in ipairs(context._callbacks.onChannelEvent) do
+          callback(channelId, name, event)
+        end      
+      end,
     }    
   }
 end
