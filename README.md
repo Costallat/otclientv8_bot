@@ -46,7 +46,9 @@ singlehotkey(keys, name, callback[, parent])
 
 schedule(timeout, callback)
 
--- functions/callbacks.lia
+delay(duration) -- can be only used inside callback function, blocks execution of current macro/hotkey/callback for x milliseconds
+
+-- functions/callbacks.lua
 onKeyDown(callback) -- callback = function(keys)
 onKeyPress(callback) -- callback = function(keys)
 onKeyUp(callback) -- callback = function(keys)
@@ -59,20 +61,19 @@ onCreaturePositionChange(callback) -- callback = function(creature, newPos, oldP
 onCreatureHealthPercentChange(callback) -- callback = function(creature, healthPercent)
 onUse(callback) -- callback = function(pos, itemId, stackPos, subType)
 onUseWith(callback) -- callback = function(pos, itemId, target, subType)
-onContainerOpen -- callback = function(container, previousContainer)
-onContainerUpdateItem -- callback = function(container)
-onContainerUpdateItem -- callback = function(container, slot, item)
-onMissle -- callback = function(missle)
-onChannelList -- callback = function(channels)
-onOpenChannel -- callback = function(channelId, name)
-onCloseChannel -- callback = function(channelId)
-onChannelEvent -- callback = function(channelId, name, event)
+onContainerOpen(callback) -- callback = function(container, previousContainer)
+onContainerUpdateItem(callback) -- callback = function(container)
+onContainerUpdateItem(callback) -- callback = function(container, slot, item)
+onMissle(callback) -- callback = function(missle)
+onChannelList(callback) -- callback = function(channels)
+onOpenChannel(callback) -- callback = function(channelId, name)
+onCloseChannel(callback) -- callback = function(channelId)
+onChannelEvent(callback) -- callback = function(channelId, name, event)
 
 listen(name, callback) -- callback = function(text, channelId, pos)
 onPlayerPositionChange(callback) -- callback = function(newPos, oldPos)
 onPlayerHealthChange(callback) -- callback = function(healthPercent)
 
-delay(duration) -- can be only used inside callback function, blocks execution of current macro/hotkey/callback for x milliseconds
 ```
 
 ## For other functions check folder `game_bot/functions/`. Second list of functions you can find in `lua` directory.

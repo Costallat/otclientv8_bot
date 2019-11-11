@@ -1,10 +1,11 @@
 MiniWindow
   id: botWindow
   !text: tr('Bot')
-  height: 200
+  height: 600
   icon: /images/topbuttons/bot
   @onClose: modules.game_bot.onMiniWindowClose()
   &save: true
+  &autoOpen: 10
 
   MiniWindowContents   
     margin-left: 5

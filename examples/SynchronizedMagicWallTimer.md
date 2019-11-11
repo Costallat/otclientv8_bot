@@ -1,3 +1,4 @@
+```
 -- sync mwall
 -- tested on 1099
 local secondPlayer = "Player1"
@@ -23,3 +24,4 @@ listen(secondPlayer, function(text)
     storage[data.pos] = now + 20000 - data.ping - ping()
   end
 end)
+```

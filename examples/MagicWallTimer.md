@@ -1,3 +1,4 @@
+```
 -- Tested on version 1099
 onAddThing(function(tile, thing)
   if thing:isItem() and thing:getId() == 2129 then
@@ -8,3 +9,4 @@ onAddThing(function(tile, thing)
     tile:setTimer(storage[pos] - now)
   end
 end)
+```

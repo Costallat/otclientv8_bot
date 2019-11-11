@@ -1,4 +1,4 @@
-
+```
 local widget = setupUI([[
 Panel
   id: redPanel
@@ -12,3 +12,4 @@ Panel
     text: custom ui, otml based
     text-align: center
 ]])
+```
