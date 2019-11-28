@@ -1,7 +1,8 @@
 # OTClientV8 BOT
 
-### Made and tested on [OTClientV8](https://github.com/OTCv8/otclientv8), however it is possible to port it to classic OTClient.
+### Made for [OTClientV8](https://github.com/OTCv8/otclientv8)
 ### Discord channel: https://discord.gg/feySup6
+### Forum: https://otland.net/forums/otclient.494/
 
 ## Main bot variables
 ```
@@ -22,7 +23,7 @@ info(text)
 warn(text)
 error(text)
 
-saveConfig()
+saveConfig() -- saves config immediately
 addTab(name) -- returns tab panel, can be used as parent parameter for bellow functions
 
 -- functions/ui.lua
@@ -35,7 +36,7 @@ addSeparator(id[, parent])
 
 -- functions/main.lua
 macro(timeout, callback)
-macro(timeout, name, callback)
+macro(timeout, name, callback[, parent])
 macro(timeout, name, hotkey, callback[, parent]) -- hotkey is used to turn on/off macro
 
 hotkey(keys, callback)
@@ -74,6 +75,11 @@ listen(name, callback) -- callback = function(text, channelId, pos)
 onPlayerPositionChange(callback) -- callback = function(newPos, oldPos)
 onPlayerHealthChange(callback) -- callback = function(healthPercent)
 
+-- BotServer (communication between players)
+BotServer.init(nick, channel)
+BotServer.terminate()
+BotServer.send(topic, data)
+BotServer.listen(topic, callback) -- callback = function(nick, message[, topic])
 ```
 
 ## For other functions check folder `game_bot/functions/`. Second list of functions you can find in `lua` directory.
@@ -188,4 +194,29 @@ end)
 
 addLabel("mapinfo", "You can use ctrl + plus and ctrl + minus to zoom in / zoom out map")
 
+```
+
+## Data synchtonization example (BotServer)
+```
+-- synchronized magic wall timer
+storage.mwalls = {}
+
+local channel = "uniquenameofchannel"
+BotServer.init(name(), channel)
+BotServer.listen("mwall", function(name, message)
+  if not storage.mwalls[message["pos"]] then
+    storage.mwalls[message["pos"]] = now + message["duration"] - 150 -- 150 is latency correction
+  end
+end)
+
+onAddThing(function(tile, thing)
+  if thing:isItem() and thing:getId() == 2129 then
+    local pos = tile:getPosition().x .. "," .. tile:getPosition().y .. "," .. tile:getPosition().z
+    if not storage.mwalls[pos] or storage.mwalls[pos] < now then
+      storage.mwalls[pos] = now + 20000
+      BotServer.send("mwall", {pos=pos, duration=20000})
+    end
+    tile:setTimer(storage.mwalls[pos] - now)
+  end
+end)
 ```
