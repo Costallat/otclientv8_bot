@@ -15,9 +15,12 @@ Panels.Haste = function(parent)
 end
 
 Panels.ManaShield = function(parent)
+  local lastManaShield = 0
   context.macro(100, "Auto Mana Shield", nil, function()
-    if not context.hasManaShield() then
-      context.saySpell("utamo vita", 200)
+    if not context.hasManaShield() or context.now > lastManaShield + 90000 then
+      if context.saySpell("utamo vita", 200) then
+        lastManaShield = context.now
+      end
     end
   end, parent)
 end
@@ -273,9 +276,9 @@ Panels.Equip = function(parent)
       if slotItem and (slotItem:getId() == item1 or slotItem:getId() == item2) then
         return
       end
-      local newItem = context.findItem(context.storage[panelName].item1, 0)
+      local newItem = context.findItem(context.storage[panelName].item1)
       if not newItem then
-        newItem = context.findItem(context.storage[panelName].item2, 0)
+        newItem = context.findItem(context.storage[panelName].item2)
         if not newItem then
           return
         end
